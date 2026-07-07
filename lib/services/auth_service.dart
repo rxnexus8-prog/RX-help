@@ -227,10 +227,4 @@ class AuthService extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     }
-  
-  String generateRandomNumber() {
-    const chars = '0123456789';
-    final rand = Random.secure();
-    return List.generate(20, (_) => chars[rand.nextInt(chars.length)]).join();
   }
-}
