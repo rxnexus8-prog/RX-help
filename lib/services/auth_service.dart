@@ -186,3 +186,45 @@ class AuthService extends ChangeNotifier {
     notifyListeners();
   }
 }
+
+  String generateRandomNumber() {
+    const chars = '0123456789';
+    final rand = Random.secure();
+    return List.generate(AppConfig.callNumberLength, (_) => chars[rand.nextInt(chars.length)]).join();
+  }
+
+  Future<String?> updateSettings({
+    String? newCallNumber,
+    bool? useRandomNumber,
+    bool? showAsUnknown,
+  }) async {
+    if (newCallNumber != null) {
+      if (newCallNumber.length != AppConfig.callNumberLength) {
+        return 'Number must be exactly ${AppConfig.callNumberLength} digits';
+      }
+      if (newCallNumber.contains(RegExp(r'[^0-9]'))) return 'Only digits allowed';
+    }
+    _isLoading = true;
+    notifyListeners();
+    try {
+      final Map<String, dynamic> u = {};
+      if (newCallNumber != null) u['call_number'] = newCallNumber;
+      if (useRandomNumber != null) u['use_random_number'] = useRandomNumber;
+      if (showAsUnknown != null) u['show_as_unknown'] = showAsUnknown;
+      if (u.isEmpty) { _isLoading = false; notifyListeners(); return null; }
+      await _supabase.from('users').update(u).eq('id', _currentUser!.id);
+      _currentUser = _currentUser!.copyWith(
+        callNumber: newCallNumber,
+        useRandomNumber: useRandomNumber,
+        showAsUnknown: showAsUnknown,
+      );
+      notifyListeners();
+      return null;
+    } on PostgrestException catch (e) {
+      if (e.code == '23505') return 'This number is already taken';
+      return 'Update failed: ${e.message}';
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }

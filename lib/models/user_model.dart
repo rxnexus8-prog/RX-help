@@ -32,13 +32,24 @@ class UserModel {
     );
   }
 
-  UserModel copyWith({String? displayName, bool? isOnline}) {
+  static String maskNumber(String n) {
+    if (n.length <= 6) return n;
+    return '${n.substring(0, 3)}${'*' * (n.length - 6)}${n.substring(n.length - 3)}';
+  }
+
+  UserModel copyWith({
+    String? callNumber,
+    String? displayName,
+    bool? isOnline,
+    bool? useRandomNumber,
+    bool? showAsUnknown,
+  }) {
     return UserModel(
       id: id,
-      callNumber: callNumber,
+      callNumber: callNumber ?? this.callNumber,
       passwordHash: passwordHash,
-      useRandomNumber: useRandomNumber,
-      showAsUnknown: showAsUnknown,
+      useRandomNumber: useRandomNumber ?? this.useRandomNumber,
+      showAsUnknown: showAsUnknown ?? this.showAsUnknown,
       displayName: displayName ?? this.displayName,
       uniqueUid: uniqueUid,
       isOnline: isOnline ?? this.isOnline,
