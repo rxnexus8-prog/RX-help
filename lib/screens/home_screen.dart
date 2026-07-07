@@ -129,7 +129,7 @@ class HomeScreen extends StatelessWidget {
 
             // Main buttons
             _ActionCard(
-              icon: Icons.add_call_rounded,
+              icon: Icons.add_call,
               title: 'Create Room',
               subtitle: 'Start a call — share the code',
               onTap: () => Navigator.push(
