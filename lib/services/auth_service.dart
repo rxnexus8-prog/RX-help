@@ -32,6 +32,11 @@ class AuthService extends ChangeNotifier {
     return sha256.convert(utf8.encode(password)).toString();
   }
 
+  String generateRandomNumber() {
+    final rand = Random.secure();
+    return List.generate(AppConfig.callNumberLength, (_) => rand.nextInt(10).toString()).join();
+  }
+
   Future<String?> register({
     required String callNumber,
     required String password,
@@ -46,22 +51,15 @@ class AuthService extends ChangeNotifier {
 
     _isLoading = true;
     notifyListeners();
-
     try {
       final passwordHash = _hashPassword(password);
       String uid = _generateUid();
-
-      // Ensure unique uid
       while (true) {
         final existing = await _supabase
-            .from('users')
-            .select('id')
-            .eq('unique_uid', uid)
-            .maybeSingle();
+            .from('users').select('id').eq('unique_uid', uid).maybeSingle();
         if (existing == null) break;
         uid = _generateUid();
       }
-
       final response = await _supabase.from('users').insert({
         'call_number': callNumber,
         'password_hash': passwordHash,
@@ -71,7 +69,6 @@ class AuthService extends ChangeNotifier {
         'unique_uid': uid,
         'is_online': false,
       }).select().single();
-
       _currentUser = UserModel.fromMap(response);
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('user_id', _currentUser!.id);
@@ -95,8 +92,7 @@ class AuthService extends ChangeNotifier {
     try {
       final passwordHash = _hashPassword(password);
       final response = await _supabase
-          .from('users')
-          .select()
+          .from('users').select()
           .eq('call_number', callNumber)
           .eq('password_hash', passwordHash)
           .maybeSingle();
@@ -117,39 +113,10 @@ class AuthService extends ChangeNotifier {
   Future<void> _loadUser(String userId) async {
     try {
       final response = await _supabase
-          .from('users')
-          .select()
-          .eq('id', userId)
-          .single();
+          .from('users').select().eq('id', userId).single();
       _currentUser = UserModel.fromMap(response);
       notifyListeners();
     } catch (_) {}
-  }
-
-
-  Future<String?> updateSettings({
-    String? newCallNumber,
-    bool? useRandomNumber,
-    bool? showAsUnknown,
-  }) async {
-    if (newCallNumber != null) {
-      if (newCallNumber.length != AppConfig.callNumberLength)
-        return "Number must be exactly ${AppConfig.callNumberLength} digits";
-    }
-    _isLoading = true; notifyListeners();
-    try {
-      final Map<String,dynamic> u = {};
-      if (newCallNumber != null) u["call_number"] = newCallNumber;
-      if (useRandomNumber != null) u["use_random_number"] = useRandomNumber;
-      if (showAsUnknown != null) u["show_as_unknown"] = showAsUnknown;
-      if (u.isEmpty) return null;
-      _currentUser = UserModel(
-      );
-      notifyListeners(); return null;
-    } on PostgrestException catch(e) {
-      if(e.code=="23505") return "This number is already taken";
-      return "Update failed: ${e.message}";
-    } finally { _isLoading=false; notifyListeners(); }
   }
 
   Future<String?> updateDisplayName(String newName) async {
@@ -166,33 +133,6 @@ class AuthService extends ChangeNotifier {
     }
   }
 
-  Future<List<Map<String, dynamic>>> searchUsers(String query) async {
-    if (query.trim().isEmpty) return [];
-    final q = query.trim();
-    final res = await _supabase
-        .from('users')
-        .select('id, display_name, unique_uid, call_number, is_online')
-        .or('display_name.ilike.%$q%,unique_uid.eq.$q')
-        .neq('id', _currentUser!.id)
-        .limit(20);
-    return List<Map<String, dynamic>>.from(res);
-  }
-
-  Future<void> logout() async {
-    await _supabase.from('users').update({'is_online': false}).eq('id', _currentUser!.id);
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('user_id');
-    _currentUser = null;
-    notifyListeners();
-  }
-}
-
-  String generateRandomNumber() {
-    const chars = '0123456789';
-    final rand = Random.secure();
-    return List.generate(AppConfig.callNumberLength, (_) => chars[rand.nextInt(chars.length)]).join();
-  }
-
   Future<String?> updateSettings({
     String? newCallNumber,
     bool? useRandomNumber,
@@ -202,7 +142,7 @@ class AuthService extends ChangeNotifier {
       if (newCallNumber.length != AppConfig.callNumberLength) {
         return 'Number must be exactly ${AppConfig.callNumberLength} digits';
       }
-      if (newCallNumber.contains(RegExp(r'[^0-9]'))) return 'Only digits allowed';
+      if (!RegExp(r'^\d+$').hasMatch(newCallNumber)) return 'Only digits allowed';
     }
     _isLoading = true;
     notifyListeners();
@@ -211,7 +151,7 @@ class AuthService extends ChangeNotifier {
       if (newCallNumber != null) u['call_number'] = newCallNumber;
       if (useRandomNumber != null) u['use_random_number'] = useRandomNumber;
       if (showAsUnknown != null) u['show_as_unknown'] = showAsUnknown;
-      if (u.isEmpty) { _isLoading = false; notifyListeners(); return null; }
+      if (u.isEmpty) return null;
       await _supabase.from('users').update(u).eq('id', _currentUser!.id);
       _currentUser = _currentUser!.copyWith(
         callNumber: newCallNumber,
@@ -228,3 +168,25 @@ class AuthService extends ChangeNotifier {
       notifyListeners();
     }
   }
+
+  Future<List<Map<String, dynamic>>> searchUsers(String query) async {
+    if (query.trim().isEmpty) return [];
+    final q = query.trim();
+    final res = await _supabase
+        .from('users')
+        .select('id, display_name, unique_uid, call_number, is_online')
+        .or('display_name.ilike.%$q%,unique_uid.eq.$q')
+        .neq('id', _currentUser!.id)
+        .limit(20);
+    return List<Map<String, dynamic>>.from(res);
+  }
+
+  Future<void> logout() async {
+    await _supabase.from('users')
+        .update({'is_online': false}).eq('id', _currentUser!.id);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('user_id');
+    _currentUser = null;
+    notifyListeners();
+  }
+}
