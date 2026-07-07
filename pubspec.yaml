@@ -20,7 +20,7 @@ dependencies:
   file_picker: ^8.0.3
   image_picker: ^1.1.2
   record: ^4.1.1
-  audioplayers: ^6.0.0
+  audioplayers: ^5.0.0
   open_file: ^3.3.2
   path: ^1.9.0
   mime: ^1.0.5
