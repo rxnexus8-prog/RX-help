@@ -1,43 +1,47 @@
 class UserModel {
   final String id;
   final String callNumber;
+  final String passwordHash;
   final bool useRandomNumber;
   final bool showAsUnknown;
   final String? displayName;
+  final String? uniqueUid;
+  final bool isOnline;
 
   UserModel({
     required this.id,
     required this.callNumber,
-    this.useRandomNumber = false,
-    this.showAsUnknown = false,
+    required this.passwordHash,
+    required this.useRandomNumber,
+    required this.showAsUnknown,
     this.displayName,
+    this.uniqueUid,
+    this.isOnline = false,
   });
 
   factory UserModel.fromMap(Map<String, dynamic> map) {
     return UserModel(
       id: map['id'],
-      callNumber: map['call_number'] ?? '',
+      callNumber: map['call_number'],
+      passwordHash: map['password_hash'],
       useRandomNumber: map['use_random_number'] ?? false,
       showAsUnknown: map['show_as_unknown'] ?? false,
       displayName: map['display_name'],
+      uniqueUid: map['unique_uid'],
+      isOnline: map['is_online'] ?? false,
     );
   }
 
-  Map<String, dynamic> toMap() => {
-        'id': id,
-        'call_number': callNumber,
-        'use_random_number': useRandomNumber,
-        'show_as_unknown': showAsUnknown,
-        'display_name': displayName,
-      };
-
-  /// Mask number: first 3 + last 3 visible, rest = *
-  static String maskNumber(String number) {
-    if (number.length <= 6) return number;
-    final visible = 3;
-    final start = number.substring(0, visible);
-    final end = number.substring(number.length - visible);
-    final stars = '*' * (number.length - visible * 2);
-    return '$start$stars$end';
+  UserModel copyWith({String? displayName, bool? isOnline}) {
+    return UserModel(
+      id: id,
+      callNumber: callNumber,
+      passwordHash: passwordHash,
+      useRandomNumber: useRandomNumber,
+      showAsUnknown: showAsUnknown,
+      displayName: displayName ?? this.displayName,
+      uniqueUid: uniqueUid,
+      isOnline: isOnline ?? this.isOnline,
+    );
   }
 }

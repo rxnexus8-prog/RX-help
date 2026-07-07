@@ -19,41 +19,58 @@ class AuthService extends ChangeNotifier {
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
     final userId = prefs.getString('user_id');
-    if (userId != null) {
-      await _loadUser(userId);
-    }
+    if (userId != null) await _loadUser(userId);
+  }
+
+  String _generateUid() {
+    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    final rand = Random.secure();
+    return List.generate(8, (_) => chars[rand.nextInt(chars.length)]).join();
+  }
+
+  String _hashPassword(String password) {
+    return sha256.convert(utf8.encode(password)).toString();
   }
 
   Future<String?> register({
     required String callNumber,
     required String password,
+    required String displayName,
   }) async {
     if (callNumber.length != AppConfig.callNumberLength) {
       return 'Number must be exactly ${AppConfig.callNumberLength} digits';
     }
-    if (!RegExp(r'^\d+$').hasMatch(callNumber)) {
-      return 'Only digits allowed';
-    }
-    if (password.length < 6) {
-      return 'Password min 6 characters';
-    }
+    if (!RegExp(r'^\d+$').hasMatch(callNumber)) return 'Only digits allowed';
+    if (password.length < 6) return 'Password min 6 characters';
+    if (displayName.trim().isEmpty) return 'Display name required';
 
     _isLoading = true;
     notifyListeners();
 
     try {
       final passwordHash = _hashPassword(password);
+      String uid = _generateUid();
 
-      final response = await _supabase
-          .from('users')
-          .insert({
-            'call_number': callNumber,
-            'password_hash': passwordHash,
-            'use_random_number': false,
-            'show_as_unknown': false,
-          })
-          .select()
-          .single();
+      // Ensure unique uid
+      while (true) {
+        final existing = await _supabase
+            .from('users')
+            .select('id')
+            .eq('unique_uid', uid)
+            .maybeSingle();
+        if (existing == null) break;
+        uid = _generateUid();
+      }
+
+      final response = await _supabase.from('users').insert({
+        'call_number': callNumber,
+        'password_hash': passwordHash,
+        'use_random_number': false,
+        'show_as_unknown': false,
+        'display_name': displayName.trim(),
+        'unique_uid': uid,
+        'is_online': false,
+      }).select().single();
 
       _currentUser = UserModel.fromMap(response);
       final prefs = await SharedPreferences.getInstance();
@@ -75,69 +92,25 @@ class AuthService extends ChangeNotifier {
   }) async {
     _isLoading = true;
     notifyListeners();
-
     try {
       final passwordHash = _hashPassword(password);
-
       final response = await _supabase
           .from('users')
           .select()
           .eq('call_number', callNumber)
           .eq('password_hash', passwordHash)
           .maybeSingle();
-
-      if (response == null) return 'Wrong number or password';
-
+      if (response == null) return 'Invalid number or password';
       _currentUser = UserModel.fromMap(response);
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('user_id', _currentUser!.id);
       notifyListeners();
       return null;
-    } catch (e) {
-      return 'Login failed. Try again.';
+    } on PostgrestException catch (e) {
+      return 'Login failed: ${e.message}';
     } finally {
       _isLoading = false;
       notifyListeners();
-    }
-  }
-
-  Future<void> logout() async {
-    _currentUser = null;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('user_id');
-    notifyListeners();
-  }
-
-  Future<String?> updateSettings({
-    String? newCallNumber,
-    bool? useRandomNumber,
-    bool? showAsUnknown,
-  }) async {
-    if (_currentUser == null) return 'Not logged in';
-
-    final updates = <String, dynamic>{};
-    if (newCallNumber != null) {
-      if (newCallNumber.length != AppConfig.callNumberLength) {
-        return 'Number must be ${AppConfig.callNumberLength} digits';
-      }
-      updates['call_number'] = newCallNumber;
-    }
-    if (useRandomNumber != null) updates['use_random_number'] = useRandomNumber;
-    if (showAsUnknown != null) updates['show_as_unknown'] = showAsUnknown;
-
-    try {
-      final response = await _supabase
-          .from('users')
-          .update(updates)
-          .eq('id', _currentUser!.id)
-          .select()
-          .single();
-
-      _currentUser = UserModel.fromMap(response);
-      notifyListeners();
-      return null;
-    } catch (e) {
-      return 'Update failed: $e';
     }
   }
 
@@ -147,22 +120,43 @@ class AuthService extends ChangeNotifier {
           .from('users')
           .select()
           .eq('id', userId)
-          .maybeSingle();
-      if (response != null) {
-        _currentUser = UserModel.fromMap(response);
-        notifyListeners();
-      }
+          .single();
+      _currentUser = UserModel.fromMap(response);
+      notifyListeners();
     } catch (_) {}
   }
 
-  /// Generate random 20-digit number for calls
-  String generateRandomNumber() {
-    final rand = Random.secure();
-    return List.generate(AppConfig.callNumberLength, (_) => rand.nextInt(10))
-        .join();
+  Future<String?> updateDisplayName(String newName) async {
+    if (newName.trim().isEmpty) return 'Name cannot be empty';
+    try {
+      await _supabase.from('users')
+          .update({'display_name': newName.trim()})
+          .eq('id', _currentUser!.id);
+      _currentUser = _currentUser!.copyWith(displayName: newName.trim());
+      notifyListeners();
+      return null;
+    } catch (e) {
+      return 'Update failed';
+    }
   }
 
-  String _hashPassword(String password) {
-    return sha256.convert(utf8.encode(password)).toString();
+  Future<List<Map<String, dynamic>>> searchUsers(String query) async {
+    if (query.trim().isEmpty) return [];
+    final q = query.trim();
+    final res = await _supabase
+        .from('users')
+        .select('id, display_name, unique_uid, call_number, is_online')
+        .or('display_name.ilike.%$q%,unique_uid.eq.$q')
+        .neq('id', _currentUser!.id)
+        .limit(20);
+    return List<Map<String, dynamic>>.from(res);
+  }
+
+  Future<void> logout() async {
+    await _supabase.from('users').update({'is_online': false}).eq('id', _currentUser!.id);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('user_id');
+    _currentUser = null;
+    notifyListeners();
   }
 }
