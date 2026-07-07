@@ -32,9 +32,3 @@ flutter:
   uses-material-design: true
   assets:
     - assets/
-
-dependency_overrides:
-  record_linux:
-    git:
-      url: https://github.com/llfbandit/record.git
-      path: record_linux
