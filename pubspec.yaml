@@ -16,6 +16,8 @@ dependencies:
   wakelock_plus: ^1.2.5
   flutter_animate: ^4.5.0
   crypto: ^3.0.3
+  flutter_local_notifications: ^17.2.2
+  audioplayers: ^6.0.0
 dev_dependencies:
   flutter_test:
     sdk: flutter
