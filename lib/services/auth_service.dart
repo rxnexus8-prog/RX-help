@@ -126,6 +126,32 @@ class AuthService extends ChangeNotifier {
     } catch (_) {}
   }
 
+
+  Future<String?> updateSettings({
+    String? newCallNumber,
+    bool? useRandomNumber,
+    bool? showAsUnknown,
+  }) async {
+    if (newCallNumber != null) {
+      if (newCallNumber.length != AppConfig.callNumberLength)
+        return "Number must be exactly ${AppConfig.callNumberLength} digits";
+    }
+    _isLoading = true; notifyListeners();
+    try {
+      final Map<String,dynamic> u = {};
+      if (newCallNumber != null) u["call_number"] = newCallNumber;
+      if (useRandomNumber != null) u["use_random_number"] = useRandomNumber;
+      if (showAsUnknown != null) u["show_as_unknown"] = showAsUnknown;
+      if (u.isEmpty) return null;
+      _currentUser = UserModel(
+      );
+      notifyListeners(); return null;
+    } on PostgrestException catch(e) {
+      if(e.code=="23505") return "This number is already taken";
+      return "Update failed: ${e.message}";
+    } finally { _isLoading=false; notifyListeners(); }
+  }
+
   Future<String?> updateDisplayName(String newName) async {
     if (newName.trim().isEmpty) return 'Name cannot be empty';
     try {

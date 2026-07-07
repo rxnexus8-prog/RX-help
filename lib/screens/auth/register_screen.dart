@@ -14,6 +14,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _numberCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
   final _confirmCtrl = TextEditingController();
+  final _nameCtrl = TextEditingController();
   bool _obscure = true;
   String? _error;
 
@@ -34,6 +35,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final err = await auth.register(
       callNumber: _numberCtrl.text.trim(),
       password: _passCtrl.text,
+      displayName: _nameCtrl.text.trim(),
     );
     if (!mounted) return;
     if (err != null) {
@@ -160,6 +162,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
               const SizedBox(height: 16),
 
               TextField(
+                controller: _nameCtrl,
+                style: const TextStyle(color: Color(0xFFE8E8F0)),
+                decoration: const InputDecoration(
+                  labelText: 'Display Name',
+                  prefixIcon: Icon(Icons.badge_outlined, color: Color(0xFF5C5C7A)),
+                ),
+              ),
+              const SizedBox(height: 14),
+              TextField(
                 controller: _passCtrl,
                 obscureText: _obscure,
                 style: const TextStyle(color: Color(0xFFE8E8F0)),
@@ -246,6 +257,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   void dispose() {
+    _nameCtrl.dispose();
     _numberCtrl.dispose();
     _passCtrl.dispose();
     _confirmCtrl.dispose();
