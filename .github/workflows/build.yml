@@ -8,17 +8,70 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-java@v4
         with:
           distribution: zulu
           java-version: '17'
+
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.22.0'
           channel: stable
           cache: true
-      - run: flutter pub get
-      - run: flutter build apk --release --split-per-abi
+
+      - name: Create fresh Flutter project
+        run: |
+          flutter create --org com.r4x --project-name r4x_help tmp_app
+          cp -r tmp_app/android .
+          rm -rf tmp_app
+
+      - name: Override MainActivity
+        run: |
+          mkdir -p android/app/src/main/kotlin/com/r4x/r4x_help
+          cat > android/app/src/main/kotlin/com/r4x/r4x_help/MainActivity.kt << 'KTEOF'
+          package com.r4x.r4x_help
+          import io.flutter.embedding.android.FlutterActivity
+          class MainActivity: FlutterActivity()
+          KTEOF
+
+      - name: Override AndroidManifest
+        run: |
+          cat > android/app/src/main/AndroidManifest.xml << 'XMLEOF'
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.INTERNET"/>
+              <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+              <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
+              <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+              <uses-permission android:name="android.permission.WAKE_LOCK"/>
+              <application
+                  android:label="R4X Help"
+                  android:name="${applicationName}"
+                  android:icon="@mipmap/ic_launcher"
+                  android:hardwareAccelerated="true">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:launchMode="singleTop"
+                      android:hardwareAccelerated="true"
+                      android:windowSoftInputMode="adjustResize"
+                      android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN"/>
+                          <category android:name="android.intent.category.LAUNCHER"/>
+                      </intent-filter>
+                  </activity>
+                  <meta-data android:name="flutterEmbedding" android:value="2"/>
+              </application>
+          </manifest>
+          XMLEOF
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Build APK
+        run: flutter build apk --release --split-per-abi
+
       - uses: actions/upload-artifact@v4
         with:
           name: r4xhelp-apk
